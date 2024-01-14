@@ -7,9 +7,13 @@ find_package(OpenCV REQUIRED )
 
 
 include_directories(${OpenCV_INCLUDE_DIRS})
-include_directories(.)
+include_directories(./include)
 
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-O3 --use_fast_math --maxrregcount=128 --ptxas-options=-v -std=c++11 --compiler-options -Wall -gencode arch=compute_89,code=sm_89)
+
+# GENERATE COMPILE COMMANDS JSON
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 if(CMAKE_COMPILER_IS_GNUCXX)
     add_definitions(-std=c++11)
     add_definitions(-pthread)
@@ -26,20 +30,14 @@ if (OPENMP_FOUND)
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif()
 
+# 添加子目录，指向src目录
+add_subdirectory(src)
 
-# For compilation ...
-# Specify target & source files to compile it from
-cuda_add_executable(
-    ACMMP
-    main.h
-    ACMMP.h
-    ACMMP.cpp
-    ACMMP.cu
-    main.cpp
-    )
+add_executable(main main.cpp)
 
-# For linking ...
-# Specify target & libraries to link it with
-target_link_libraries(ACMMP
-    ${OpenCV_LIBS}
-    )
+target_link_libraries(main ACMMP)
+
+
+add_executable(fusion fusion.cpp)
+
+target_link_libraries(fusion ACMMP)   

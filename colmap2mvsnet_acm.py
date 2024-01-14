@@ -22,7 +22,7 @@ CameraModel = collections.namedtuple(
 Camera = collections.namedtuple(
     "Camera", ["id", "model", "width", "height", "params"])
 BaseImage = collections.namedtuple(
-    "Image", ["id", "qvec", "tvec", "camera_id", "name", "xys", "point3D_ids"])
+    "Image", ["id", "qvec", "tvec", "camera_id", "name", "xys", "point3D_ids", "point3D_ids_set"])
 Point3D = collections.namedtuple(
     "Point3D", ["id", "xyz", "rgb", "error", "image_ids", "point2D_idxs"])
 
@@ -138,10 +138,11 @@ def read_images_text(path):
                 xys = np.column_stack([tuple(map(float, elems[0::3])),
                                        tuple(map(float, elems[1::3]))])
                 point3D_ids = np.array(tuple(map(int, elems[2::3])))
+                point3D_ids_set = set(point3D_ids)
                 images[image_id] = Image(
                     id=image_id, qvec=qvec, tvec=tvec,
                     camera_id=camera_id, name=image_name,
-                    xys=xys, point3D_ids=point3D_ids)
+                    xys=xys, point3D_ids=point3D_ids, point3D_ids_set=point3D_ids_set)
     return images
 
 
@@ -173,10 +174,11 @@ def read_images_binary(path_to_model_file):
             xys = np.column_stack([tuple(map(float, x_y_id_s[0::3])),
                                    tuple(map(float, x_y_id_s[1::3]))])
             point3D_ids = np.array(tuple(map(int, x_y_id_s[2::3])))
+            point3D_ids_set = set(point3D_ids)
             images[image_id] = Image(
                 id=image_id, qvec=qvec, tvec=tvec,
                 camera_id=camera_id, name=image_name,
-                xys=xys, point3D_ids=point3D_ids)
+                xys=xys, point3D_ids=point3D_ids, point3D_ids_set=point3D_ids_set)
     return images
 
 
@@ -279,9 +281,12 @@ def rotmat2qvec(R):
 
 def calc_score(inputs, images, points3d, extrinsic, args):
     i, j = inputs
-    id_i = images[i+1].point3D_ids
-    id_j = images[j+1].point3D_ids
-    id_intersect = [it for it in id_i if it in id_j]
+    # id_i = images[i+1].point3D_ids
+    # id_j = images[j+1].point3D_ids
+    # id_intersect = [it for it in id_i if it in id_j]
+
+    id_intersect = images[i+1].point3D_ids_set & images[j+1].point3D_ids_set
+
     cam_center_i = -np.matmul(extrinsic[i+1][:3, :3].transpose(), extrinsic[i+1][:3, 3:4])[:, 0]
     cam_center_j = -np.matmul(extrinsic[j+1][:3, :3].transpose(), extrinsic[j+1][:3, 3:4])[:, 0]
     score = 0
@@ -402,7 +407,7 @@ def processing_single_scene(args):
         for j in range(i + 1, len(images)):
             queue.append((i, j))
 
-    p = mp.Pool(processes=mp.cpu_count())
+    p = mp.Pool(processes=4)
     func = partial(calc_score, images=images, points3d=points3d, args=args, extrinsic=extrinsic)
     result = p.map(func, queue)
     for i, j, s in result:
